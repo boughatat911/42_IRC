@@ -1,57 +1,51 @@
-#include <arpa/inet.h>
+#include <string>
 #include <iostream>
+#include <iostream>
+#include <unistd.h>
 
-int main() {
+#include <string>        // std::string
+#include <netdb.h>       // getnameinfo, NI_MAXHOST
+#include <sys/socket.h>  // sockaddr, sockaddr_storage
+#include <netinet/in.h>  // sockaddr_in, sockaddr_in6
+#include <arpa/inet.h>   // AF_INET, AF_INET6
+#include "includes/Server.hpp"
 
-	// socket   ==> create socket 
-	// bind to a port  // htons() >> little endian and big endian
-	// lisen()  ==> katwajed server bach y9bel clients
-	// accept() ==> accept clients
+int g_num_fds = 1;
 
-	// poll() ==> to handl multiple clients  //use struct pollfd{int fd; short events; short revents;}
+bool ft_isdigit(char *str)
+{
+	while (*str)
+	{
+		if (!isdigit(*str))
+			return (false);
+		str++;
+	}
 
+	return ( true );
+}
 
+int main(int ac, char **av)
+{
+	if (ac != 3 || !av[1][0] || !av[2][0])
+	{
+		std::cerr << "Usage: " << av[0] << " <PORT>"  << " <PASSWORD>" << std::endl;
+		return 1;
+	}
 
-	// struct pollfd fds[MAX_CLIENTS];
+	if (ft_isdigit(av[1]) == false ||  std::atoi(av[1]) == false)
+	{
+		std::cerr << "Error: accept only number in port and password" << std::endl;
+		return 1;
+	}
+	int port = std::atoi(av[1]);
+	if (port <= 0 || port > 65535)
+	{
+		std::cerr << "Error: port must be between 1 and 65535" << std::endl;
+		return 1;
+	}
+	
+	Server ser(port, av[2]);
+	ser.start();
 
-	struct sockaddr_in add;
-	add.
-	// struct pollfd fds[MAX_CLIENTS];
-	// fds[0].fd = server_fd;
-	// fds[0].events = POLLIN;
-	// int num_fds = 1;
-	// int f = socket(AF_INET, SOCK_STREAM, 0); // for what use 0 ?
-	// while (true) {
-	// 	int ret = poll(fds, num_fds, -1);  // -1 = wait forever
-		
-	// 	if (ret == -1)
-	// 	{
-	// 		// claen all leaks
-	// 		exit(0);
-	// 	}
-	// 	if (ret > 0) {  // Something happened!
-			
-	// 		// Check server socket
-	// 		if (fds[0].revents & POLLIN) {
-	// 			// What should you do here?
-	// 			int client_fd = accept(fds[0].fd, NULL,NULL);
-	// 			fds[num_fds].fd = client_fd;
-	// 			fds[num_fds].events = POLLIN;
-	// 			num_fds++;
-	// 			// Hint: Something is trying to connect!
-	// 		}
-			
-	// 		// Check all clients
-	// 		for (int i = 1; i < num_fds; i++) {
-	// 			if (fds[i].revents & POLLIN) {
-	// 				char buffer[1024];
-	// 				read(fds[i].fd, buffer, 1024);
-	// 				write(fds[i].fd, "Hello from server!\n", 19);
-	// 				// What should you do here?
-	// 				// Hint: This client sent a message!
-	// 				close(fds[i].fd);
-	// 			}
-	// 		}
-	// 	}
-	// }
+	return 0;
 }
