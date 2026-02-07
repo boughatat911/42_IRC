@@ -11,7 +11,25 @@ A lightweight **IRC (Internet Relay Chat) server** written in C++. Connect with 
 - **Password protection**: server requires a password to connect
 - **Nickname** validation (letters only) and uniqueness checks
 - **Built-in bot** with help, time, user info, and other commands
-- **Configurable port** (1–65535) and max clients (10)
+- **Configurable port** (1–65535)
+
+---
+
+## How the server works
+
+The server is a single process that handles all clients with one thread using **multiplexed I/O**:
+
+1. **Setup** — Creates a TCP socket, binds it to the chosen port, sets `SO_REUSEADDR`, and calls `listen()`. The listening socket and all client sockets are set to **non-blocking** so the process never blocks on a single connection.
+
+2. **Event loop** — Uses **`poll()`** to wait for activity on the listening socket or any client socket. When `poll()` returns, the server checks which file descriptors have events (e.g. `POLLIN` for data to read, or `POLLHUP`/`POLLERR` for disconnect/error).
+
+3. **New connections** — If the listening socket has `POLLIN`, the server calls `accept()`, creates a new `Client`, stores its fd in the poll array, and continues. New clients start unregistered.
+
+4. **Client data** — If a client fd has `POLLIN`, the server reads into a buffer and appends to that client’s message buffer. It then splits on `\r\n` and processes each complete line with `processCommand()` (PASS, NICK, USER, QUIT, or bot commands). Partial lines stay in the client buffer until the next read.
+
+5. **Disconnects** — On `read() == 0` or `POLLHUP`/`POLLERR`, the client is removed from the poll array and its resources are freed.
+
+So one process serves all clients by reacting to which socket is ready, without threads or forking.
 
 ---
 
