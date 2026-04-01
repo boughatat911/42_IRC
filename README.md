@@ -1,165 +1,247 @@
 # ft_irc
 
-A lightweight **IRC (Internet Relay Chat) server** written in C++. Connect with any IRC client, register with a password, and chat—with a built-in bot for fun commands.
+*This project has been created as part of the 42 curriculum by nbougrin, yabounna, oelbied.*
 
----
+## Description
 
-## Features
+ft_irc is an IRC (Internet Relay Chat) server implementation written in C++98. The goal of this project is to create a fully functional IRC server capable of handling multiple clients simultaneously through non-blocking I/O operations. The server supports essential IRC features including authentication, channel management, private messaging, and channel operator commands. This project demonstrates understanding of network programming, socket operations, and the IRC protocol while adhering to C++98 standards and strict compilation requirements.
 
-- **TCP server** using `poll()` for non-blocking I/O
-- **Client registration**: PASS → NICK → USER (IRC-style)
-- **Password protection**: server requires a password to connect
-- **Nickname** validation (letters only) and uniqueness checks
-- **Built-in bot** with help, time, user info, and other commands
-- **Configurable port** (1–65535)
+## Instructions
 
----
+### Compilation
 
-## How the server works
-
-The server is a single process that handles all clients with one thread using **multiplexed I/O**:
-
-1. **Setup** — Creates a TCP socket, binds it to the chosen port, sets `SO_REUSEADDR`, and calls `listen()`. The listening socket and all client sockets are set to **non-blocking** so the process never blocks on a single connection.
-
-2. **Event loop** — Uses **`poll()`** to wait for activity on the listening socket or any client socket. When `poll()` returns, the server checks which file descriptors have events (e.g. `POLLIN` for data to read, or `POLLHUP`/`POLLERR` for disconnect/error).
-
-3. **New connections** — If the listening socket has `POLLIN`, the server calls `accept()`, creates a new `Client`, stores its fd in the poll array, and continues. New clients start unregistered.
-
-4. **Client data** — If a client fd has `POLLIN`, the server reads into a buffer and appends to that client’s message buffer. It then splits on `\r\n` and processes each complete line with `processCommand()` (PASS, NICK, USER, QUIT, or bot commands). Partial lines stay in the client buffer until the next read.
-
-5. **Disconnects** — On `read() == 0` or `POLLHUP`/`POLLERR`, the client is removed from the poll array and its resources are freed.
-
-So one process serves all clients by reacting to which socket is ready, without threads or forking.
-
----
-
-## Requirements
-
-- **C++** compiler (e.g. `g++`, `clang++`)
-- **Unix-like** system (Linux, macOS) with POSIX sockets and `poll`
-
----
-
-## Build
+The project uses a Makefile with the following rules:
 
 ```bash
-make
+make        # Compile the server
+make clean  # Remove object files
+make fclean # Remove object files and executable
+make re     # Recompile everything
 ```
 
-Produces the `ircserv` binary.
+The server is compiled with the following flags: `-Wall -Wextra -Werror -std=c++98`
+
+### Requirements
+
+- C++ compiler with C++98 support
+- Unix-like operating system (Linux or macOS)
+- Make build system
+
+### Execution
+
+Start the server by providing a port number and password:
 
 ```bash
-make clean    # remove object files
-make fclean   # remove objects and binary
-make re       # fclean + build
+./ircserv <port> <password>
 ```
 
----
-
-## Usage
-
+Example:
 ```bash
-./ircserv <PORT> <PASSWORD>
+./ircserv 6667 mypassword
 ```
 
-| Argument   | Description                          |
-|-----------|--------------------------------------|
-| `PORT`    | Listening port (1–65535), digits only |
-| `PASSWORD`| Server password (digits only)        |
+Arguments:
+- `port`: The port number on which the server will listen (1-65535)
+- `password`: Connection password required for client authentication
 
-**Example:**
+### Connecting to the Server
 
+**Using netcat (for testing):**
 ```bash
-./ircserv 6667 123
+nc -c 127.0.0.1 6667
+PASS mypassword
+NICK yournickname
+USER username 0 * :Real Name
 ```
 
-Then connect with an IRC client (e.g. [irssi](https://irssi.org/), [WeeChat](https://weechat.org/), or `nc`) to `localhost:6667`.
+**Using LimeChat:**
+1. Open LimeChat
+2. Add new server: 127.0.0.1
+3. Set port: 6667
+4. Set password: mypassword
+5. Connect
 
----
+## Supported Commands
 
-## Registration (required)
+### Authentication Commands
 
-Connect first, then send in order:
+- **PASS** - Authenticate with server password
+- **NICK** - Set or change nickname
+- **USER** - Set username and realname
 
-1. **PASS** \<password\>  
-   Server password (must be first).
+### Channel Commands
 
-2. **NICK** \<nickname\>  
-   Your nickname (letters only).
+- **JOIN** - Join a channel or create it if it does not exist
+- **PART** - Leave a channel
+- **TOPIC** - View or change channel topic
+- **INVITE** - Invite a user to a channel
 
-3. **USER** \<username\> \<hostname\> \<servername\> **:**\<realname\>  
-   Username and real name.
+### Messaging Commands
 
-**Example (with netcat):**
+- **PRIVMSG** - Send private message to user or channel
+- **QUIT** - Disconnect from server
 
-```bash
-nc localhost 6667
-PASS 123
-NICK Alice
-USER guest 0 * :Alice Smith
+### Operator Commands
+
+Channel operators have additional privileges:
+
+- **KICK** - Remove a user from channel
+- **MODE** - Change channel modes
+
+#### Available Channel Modes
+
+- **i** - Set/remove invite-only channel
+- **t** - Set/remove restrictions on TOPIC command
+- **k** - Set/remove channel key (password)
+- **o** - Give/take channel operator privilege
+- **l** - Set/remove user limit to channel
+
+## Architecture
+
+### Core Components
+
+**Server**
+- Manages client connections and channels
+- Handles command processing and routing
+- Implements non-blocking I/O with poll()
+
+**Client**
+- Represents connected user
+- Maintains authentication state
+- Buffers incomplete messages
+
+**Channel**
+- Manages channel members and operators
+- Enforces channel modes
+- Broadcasts messages to members
+
+### Design Principles
+
+- Single poll() call for all I/O operations
+- Non-blocking socket operations
+- No forking or threading
+- Proper signal handling (SIGINT, SIGTERM, SIGQUIT)
+- Partial message aggregation
+
+## Project Structure
+
 ```
-
-After that you receive the welcome message and can use other commands.
-
----
-
-## Commands
-
-### Registration & basics
-| Command | Description |
-|--------|-------------|
-| `PASS <password>` | Set server password (first command) |
-| `NICK <nickname>` | Set nickname (letters only) |
-| `USER <user> <host> <server> :<realname>` | Set username and real name |
-| `QUIT :<reason>` | Disconnect from server |
-
-### Bot commands (after registration)
-| Command | Description |
-|--------|-------------|
-| `!HELP` | Show help (registration + commands) |
-| `!TIME` | Server time |
-| `!DATE` | Server date |
-| `!USER <nick>` | Info about a user (nick, username, IP) |
-| `!SERVER` | Server info |
-| `!ABOUT` | About the server |
-| `!RULES` | Server rules |
-| `!BATTLE [nick]` | Random fight result |
-
-*(Additional channel commands such as JOIN, PRIVMSG, KICK, INVITE, TOPIC, MODE may be documented in the subject or implemented in a later version.)*
-
----
-
-## Project structure
-
-```
-.
-├── main.cpp              # Entry point, port/password parsing
+ft_irc/
 ├── Makefile
-├── includes/
-│   ├── Server.hpp        # Server, poll loop, client array
-│   ├── Client.hpp        # Client state (fd, nick, user, buffer)
-│   └── Channel.hpp       # Channel (for future use)
-├── srcs/
-│   ├── Server.cpp        # Socket setup, accept, poll, handle_ClientData
-│   ├── Client.cpp        # Client getters/setters, buffer
-│   ├── Channel.cpp       # Channel logic
-│   └── Bot.cpp           # Bot commands (!HELP, !TIME, !USER, etc.)
-└── tools/
-    ├── Server_tools.cpp  # processCommand, PASS/NICK/USER/QUIT, helpers
-    ├── Client_tools.cpp  # Client utilities (parsing, IP, etc.)
-    └── tools.cpp         # Shared helpers (split, ft_toupper, etc.)
+├── Mandatory/
+│   ├── includes/
+│   │   ├── Server.hpp
+│   │   ├── Client.hpp
+│   │   ├── Channel.hpp
+│   │   └── Commands.hpp
+│   ├── srcs/
+│   │   ├── Server.cpp
+│   │   ├── Client.cpp
+│   │   └── Channel.cpp
+│   ├── tools/
+│   │   ├── Server_tools.cpp
+│   │   ├── Client_tools.cpp
+│   │   ├── privmsg.cpp
+│   │   ├── kick.cpp
+│   │   ├── mode.cpp
+│   │   ├── Join.cpp
+│   │   ├── Topic.cpp
+│   │   └── Invite.cpp
+│   └── main.cpp
+└── Bonus/
+    └── (Bot implementation)
 ```
 
----
+## Makefile Rules
 
-## Connect with an IRC client
+- `make` or `make all` - Compile the server
+- `make clean` - Remove object files
+- `make fclean` - Remove object files and executable
+- `make re` - Recompile everything
 
-- **irssi:** `/connect localhost 6667` then `/quote PASS 123`, set nick and user as needed.
-- **WeeChat:** `/server add ft_irc localhost/6667`, set password, then connect and register.
-- **Netcat:** See the registration example above.
+## Testing
 
----
+### Basic Connection Test
 
-## License
+```bash
+# Terminal 1: Start server
+./ircserv 6667 password123
 
-This project was made for educational purposes (e.g. 42 school). Use and modify as allowed by your course rules.
+# Terminal 2: Connect with nc
+nc -c 127.0.0.1 6667
+PASS password123
+NICK testuser
+USER testuser 0 * :Test User
+JOIN #test
+PRIVMSG #test :Hello world
+QUIT
+```
+
+### Multi-Client Test
+
+Connect multiple clients to test:
+- Message broadcasting in channels
+- Private messaging between users
+- Channel operator commands
+- Partial message handling
+- Client disconnection handling
+
+## Compliance
+
+This implementation follows:
+- RFC 1459 (Internet Relay Chat Protocol)
+- 42 School ft_irc subject requirements
+
+### Mandatory Features
+
+- Authentication with password
+- Nickname and username registration
+- Channel operations (join, part, topic)
+- Private and channel messaging
+- Channel operator privileges
+- Channel modes (i, t, k, o, l)
+- Operator commands (KICK, INVITE, TOPIC, MODE)
+
+### Bonus Features
+
+- Bot implementation
+
+## Technical Constraints
+
+- No external libraries except C++ standard library
+- No Boost
+- No forking allowed
+- All I/O operations must be non-blocking
+- Only one poll() (or equivalent: select, kqueue, epoll)
+- fcntl() limited to: fcntl(fd, F_SETFL, O_NONBLOCK)
+
+## Error Handling
+
+The server handles:
+- Invalid port numbers
+- Empty passwords
+- Partial message reception
+- Client disconnections
+- Invalid commands
+- Permission errors
+- Signal interruptions (Ctrl+C)
+
+## Resources
+
+### Documentation and References
+
+- **RFC 1459: Internet Relay Chat Protocol**  
+  https://www.rfc-editor.org/rfc/rfc1459.html
+
+- **Linux poll() Documentation**  
+  https://man7.org/linux/man-pages/man2/poll.2.html
+
+- **Socket Programming in C++**  
+  https://www.geeksforgeeks.org/cpp/socket-programming-in-cpp/
+
+- **Sockets Programming Guide**  
+  https://home.iitk.ac.in/~chebrolu/ee673-f06/sockets.pdf
+
+- **Beej's Guide to Network Programming**  
+  https://beej.us/guide/bgnet/
+
